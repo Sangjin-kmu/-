@@ -1,114 +1,189 @@
-# 입력
-n = int(input("정방행렬의 차수를 입력하세요 : "))
-mat = []
-for i in range(n):
-    row = list(map(int, input(f"{i+1}행 : ").split()))
-    mat.append(row)
+def print_matrix(matrix, title=None):
+    if title:
+        print(f"\n{title}")
+    for row in matrix:
+        print(row)
+    print()
 
-# 행렬식 (재귀)
-def determinant(m):
-    n = len(m)
-    if n == 1: return m[0][0]
-    if n == 2: return m[0][0]*m[1][1] - m[0][1]*m[1][0]
-    d = 0
-    for j in range(n):
-        sub = [row[:j]+row[j+1:] for row in m[1:]]
-        d += ((-1)**j) * m[0][j] * determinant(sub)
-    return d
-
-# 행렬식 이용한 역행렬
-def inverse_by_determinant(m):
-    n = len(m)
-    d = determinant(m)
-    if d == 0: return None
-    cof = []
+def input_relation_matrix():
+    print("관계행렬의 크기를 입력하세요:")
+    n = int(input("n = "))
+    print("각 행을 공백으로 구분해 입력하세요 (0 또는 1):")
+    matrix = []
     for i in range(n):
-        cof_row = []
-        for j in range(n):
-            sub = [row[:j]+row[j+1:] for k,row in enumerate(m) if k != i]
-            cof_row.append(((-1)**(i+j)) * determinant(sub))
-        cof.append(cof_row)
-    adj = [[cof[j][i] for j in range(n)] for i in range(n)]  # 전치
-    inv = [[adj[i][j]/d for j in range(n)] for i in range(n)]
-    return inv
+        row = list(map(int, input(f"{i+1}행: ").split()))
+        if len(row) != n:
+            raise ValueError("입력한 원소의 개수가 올바르지 않습니다.")
+        matrix.append(row)
+    A = list(range(1, n+1))
+    return matrix, A
 
-# 가우스-조던
-def inverse_by_gauss_jordan(m):
-    n = len(m)
-    a = [row[:] for row in m]
-    idn = [[float(i==j) for j in range(n)] for i in range(n)]
-    for i in range(n):
-        if a[i][i] == 0:  # 피벗 0이면 교환
-            sw = None
-            for k in range(i+1, n):
-                if a[k][i] != 0:
-                    sw = k
-                    break
-            if sw is None: return None
-            a[i], a[sw] = a[sw], a[i]
-            idn[i], idn[sw] = idn[sw], idn[i]
-        piv = a[i][i]
-        if piv == 0: return None
-        for j in range(n):  # 피벗을 1로
-            a[i][j] /= piv
-            idn[i][j] /= piv
-        for k in range(n):  # 다른 행 소거
-            if k == i: continue
-            ratio = a[k][i]
-            for j in range(n):
-                a[k][j] -= ratio * a[i][j]
-                idn[k][j] -= ratio * idn[i][j]
-    return idn
+def is_reflexive(R):
+    n = len(R)
+    return all(R[i][i] == 1 for i in range(n))
 
-# 행렬 비교
-def compare_matrices(m1, m2):
-    eps=0.0000000001
-    n = len(m1)
+
+def is_symmetric(R):
+    n = len(R)
+    return all(R[i][j] == R[j][i] for i in range(n) for j in range(n))
+
+
+def is_transitive(R):
+    n = len(R)
     for i in range(n):
         for j in range(n):
-            if abs(m1[i][j]-m2[i][j]) > eps:
-                return False
+            if R[i][j]:
+                for k in range(n):
+                    if R[j][k] and not R[i][k]:
+                        return False
     return True
 
-# 행렬 곱셈
-def multiply_matrix(A, B):
-    n = len(A)
-    m = len(B[0])
-    res = [[0]*m for _ in range(n)]
+
+def is_equivalence(R):
+    return is_reflexive(R) and is_symmetric(R) and is_transitive(R)
+
+def reflexive_closure(R):
+    n = len(R)
+    newR = [row[:] for row in R]
     for i in range(n):
-        for j in range(m):
-            s = 0
-            for k in range(len(B)):
-                s += A[i][k] * B[k][j]
-            res[i][j] = s
-    return res
+        newR[i][i] = 1
+    return newR
 
-# 출력
-r1 = inverse_by_determinant(mat)
-if r1 is None:
-    print("행렬식으로는 역행렬이 존재하지 않습니다.")
-else:
-    print("\n행렬식으로 구한 역행렬 :")
-    for r in r1:
-        print(" ".join(f"{v:8.4f}" for v in r))
 
-r2 = inverse_by_gauss_jordan(mat)
-if r2 is None:
-    print("가우스-조던으로는 역행렬이 존재하지 않습니다.")
-else:
-    print("\n가우스-조던 소거법으로 구한 역행렬 :")
-    for r in r2:
-        print(" ".join(f"{v:8.4f}" for v in r))
+def symmetric_closure(R):
+    n = len(R)
+    newR = [row[:] for row in R]
+    for i in range(n):
+        for j in range(n):
+            if R[i][j] == 1:
+                newR[j][i] = 1
+    return newR
 
-if r1 and r2:
-    if compare_matrices(r1, r2):
-        print("\n두 방법의 결과가 동일합니다.")
+
+def transitive_closure(R, show_steps=False):
+    n = len(R)
+    closure = [row[:] for row in R]
+    changed = True
+    step = 1
+    while changed:
+        changed = False
+        added = []
+
+        for i in range(n):
+            for j in range(n):
+                if closure[i][j] == 0:
+                    for k in range(n):
+                        if closure[i][k] and closure[k][j]:
+                            closure[i][j] = 1
+                            changed = True
+                            if show_steps:
+                                added.append((i+1, k+1, j+1))
+                            break
+
+        if show_steps and added:
+            print(f"\n[추이 확장 step {step}] 추가된 경로:")
+            for a, b, c in added:
+                print(f"{a} → {b} → {c} 경로로 인해 {a} → {c} 추가됨")
+        step += 1
+
+    if show_steps:
+        print_matrix(closure, "최종 연결관계 행렬:")
+
+    return closure
+
+
+def warshall_closure(R):
+    n = len(R)
+    W = [row[:] for row in R]
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                W[i][j] = int(W[i][j] or (W[i][k] and W[k][j]))
+    return W
+
+
+def show_property_results(R):
+    ref = is_reflexive(R)
+    sym = is_symmetric(R)
+    tra = is_transitive(R)
+    print("\n[관계 성질 판별 결과]")
+    print(f"  반사성 (Reflexive): {'true' if ref else 'false'}")
+    print(f"  대칭성 (Symmetric): {'true' if sym else 'false'}")
+    print(f"  추이성 (Transitive): {'true' if tra else 'false'}")
+    print("")
+    return ref, sym, tra
+
+
+def print_equivalence_classes(R, A):
+    print("\n[동치류 출력]")
+    for i in range(len(A)):
+        cls = [A[j] for j in range(len(A)) if R[i][j] == 1]
+        print(f"[{A[i]}] = {cls}")
+
+
+def main():
+    R, A = input_relation_matrix()
+    print_matrix(R, "입력된 관계행렬")
+
+    show_property_results(R)
+    if is_equivalence(R):
+        print("\n이 관계는 동치 관계입니다.")
+        print_equivalence_classes(R, A)
+
+    print("반사 폐포 (Reflexive Closure)")
+    print_matrix(R, "변환 전:")
+    R_ref = reflexive_closure(R)
+    print_matrix(R_ref, "변환 후:")
+    show_property_results(R_ref)
+    if is_equivalence(R_ref):
+        print("반사 폐포 후 이 관계는 동치 관계입니다.")
+        print_equivalence_classes(R_ref, A)
+
+    print("대칭 폐포 (Symmetric Closure)")
+    print_matrix(R, "변환 전:")
+    R_sym = symmetric_closure(R)
+    print_matrix(R_sym, "변환 후:")
+    show_property_results(R_sym)
+    if is_equivalence(R_sym):
+        print("대칭 폐포 후 이 관계는 동치 관계입니다.")
+        print_equivalence_classes(R_sym, A)
+
+    print("추이 폐포 (Transitive Closure)")
+    print_matrix(R, "변환 전:")
+    R_tra = transitive_closure(R)
+    show_property_results(R_tra)
+    if is_equivalence(R_tra):
+        print("추이 폐포 후 이 관계는 동치 관계입니다.")
+        print_equivalence_classes(R_tra, A)
+
+    print("-모든 폐포 순차 적용 (Reflexive → Symmetric → Transitive)")
+    step1 = reflexive_closure(R)
+    print_matrix(step1, "-반사 폐포 적용 후:")
+    show_property_results(step1)
+    if is_equivalence(step1):
+        print("반사 폐포 후 동치 관계입니다.")
+        print_equivalence_classes(step1, A)
+
+    step2 = symmetric_closure(step1)
+    print_matrix(step2, "-대칭 폐포 적용 후:")
+    show_property_results(step2)
+    if is_equivalence(step2):
+        print("대칭 폐포 후 동치 관계입니다.")
+        print_equivalence_classes(step2, A)
+
+    step3 = transitive_closure(step2)
+    print_matrix(step3, "-추이 폐포 적용 후:")
+    show_property_results(step3)
+    if is_equivalence(step3):
+        print("모든 폐포 적용 후 동치 관계입니다.")
+        print_equivalence_classes(step3, A)
     else:
-        print("\n두 방법의 결과가 다릅니다.")
+        print("모든 폐포를 적용해도 동치 관계가 아닙니다.")
 
-# 역행렬 검증 (A * A^-1 = I ?)
-if r1:
-    check = multiply_matrix(mat, r1)
-    print("\n원래 행렬 × 역행렬 (행렬식 방식) :")
-    for r in check:
-        print(" ".join(f"{v:8.4f}" for v in r))
+    print("[추가구현] Warshall 알고리즘으로 계산한 추이 폐포")
+    W = warshall_closure(R)
+    print_matrix(W, "Warshall 결과:")
+
+
+if __name__ == "__main__":
+    main()
